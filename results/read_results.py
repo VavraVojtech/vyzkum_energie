@@ -25,7 +25,7 @@ if __name__ == '__main__':
 
     model_type = 'XGBoost'
     model_train = 'hyperopt'
-    strategy = "CA"
+    strategy = "CO"
 
     if model_train == 'zellij':
         df = pd.read_csv(f'results/spotreba_cr_{model_train}_{strategy}_results.csv')

@@ -290,6 +290,7 @@ if __name__ == '__main__':
     nan_df = df.loc[df.isna().any(axis=1), df.columns[df.isna().any(axis=0)]]
     print(nan_df)
 
-    nan_df.to_csv('_check_train_data.csv', index=True)
+    print(df.tail())
+    # nan_df.to_csv('_check_train_data.csv', index=True)
 
 

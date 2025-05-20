@@ -14,6 +14,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import pickle
+import random
 
 # Machine Learning
 from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV, RandomizedSearchCV
@@ -50,7 +51,7 @@ from processing.tools import filter_data, save_model, write_compare_models_to_ex
 from config import config
 from processing.combiner import get_train_data
 
-def plot_results(df, y_test, y_pred, target, split_date=False):
+def plot_results(df, y_test, y_pred, target, model_train, strategy, map_str, split_date=False, SET_SEED=1234):
     results = pd.DataFrame(y_test)
     results = results.rename(columns={target: 'y_test'})
     results['y_pred'] = y_pred
@@ -64,7 +65,10 @@ def plot_results(df, y_test, y_pred, target, split_date=False):
         results = results.reset_index(drop=True)
 
     if model_train == 'zellij':
-        results.to_csv(f"results/{target}_{model_train}_{strategy}_results.csv", index=False)
+        if strategy == 'CO':
+            results.to_csv(f"results/{target}_{model_train}_{strategy}_{map_str}_results_{SET_SEED}.csv", index=False)
+        else:
+            results.to_csv(f"results/{target}_{model_train}_{strategy}_results_{SET_SEED}.csv", index=False)
     else:
         results.to_csv(f"results/{target}_{model_train}_results.csv", index=False)
 
@@ -86,9 +90,12 @@ def plot_results(df, y_test, y_pred, target, split_date=False):
 
     plt.grid()
     if model_train == 'zellij':
-        path = f"graphs/{target}_{model_train}_{strategy}_results_split_date.png" if split_date else f"graphs/{target}_{model_train}_{strategy}_results.png"
+        if strategy == 'CO':
+            path = f"graphs/{target}_{model_train}_{strategy}_{map_str}_results_split_date_{SET_SEED}.png" if split_date else f"graphs/{target}_{model_train}_{strategy}_{map_str}_results_{SET_SEED}.png"
+        else:
+            path = f"graphs/{target}_{model_train}_{strategy}_results_split_date_{SET_SEED}.png"           if split_date else f"graphs/{target}_{model_train}_{strategy}_results_{SET_SEED}.png"
     else:
-        path = f"graphs/{target}_{model_train}_results_split_date.png" if split_date else f"graphs/{target}_{model_train}_results.png"
+        path = f"graphs/{target}_{model_train}_results_split_date_{SET_SEED}.png" if split_date else f"graphs/{target}_{model_train}_results_{SET_SEED}.png"
     plt.savefig(path)
     print(f"Graph of RESULTS is here: {path}")
     if split_date: print('')
@@ -120,17 +127,17 @@ def train_test_model(model_type, df, input_cols, target, split_date = False):
     logging.info(f'Columns used: \n {X_all.columns}')
 
     model = get_model(X_train, y_train, model_type)         # choose your model
-    y_pred = evaluate_model_statistic(model, X_test, y_test)
+    y_pred = evaluate_model_statistic(model, model_type, target, model_train, strategy, None, X_valid, y_valid)
 
     if split_date:
         y_test_val = y_valid
         print(f"Statistics since split_date: {split_date.date()}")
-        y_pred_val = evaluate_model_statistic(model, X_valid, y_valid)
+        y_pred_val = evaluate_model_statistic(model, model_type, target, model_train, strategy, None, X_valid, y_valid)
         return y_test, y_pred, model, y_test_val, y_pred_val
     else:
         return y_test, y_pred, model, None, None
 
-def evaluate_model_statistic(model, X_test, y_test):
+def evaluate_model_statistic(model, model_type, target, model_train, strategy, map_str, X_test, y_test): # model_train, strategy, map_str,
     score  = model.score(X_test, y_test)
     y_pred = model.predict(X_test)
 
@@ -147,10 +154,18 @@ def evaluate_model_statistic(model, X_test, y_test):
     print(f"Model Score (on test set): {score}")
     print("")
 
+    if model_train == 'zellij':
+        if strategy == 'CO':
+            model_train = f"{model_train}_{strategy}_{map_str}"
+        else:
+            model_train = f"{model_train}_{strategy}"
+    else:
+        model_train = model_train
+
     # Save results to CSV (append mode)
     results_df = pd.DataFrame([{
         "model": model_type,
-        "train": f"{model_train}_{strategy}" if model_train == 'zellij' else model_train,
+        "train": model_train,
         "MAE": mae, 
         "RMSE": rmse, 
         "Mean Error": mean_error, 
@@ -195,10 +210,18 @@ def evaluate_model_statistics3(y_test, y_pred):
     print('R-squared:', r2)
     print("")
 
+    if model_train == 'zellij':
+        if strategy == 'CO':
+            model_train = f"{model_train}_{strategy}_{map_str}"
+        else:
+            model_train = f"{model_train}_{strategy}"
+    else:
+        model_train = model_train
+
     # Save results to CSV (append mode)
     results_df = pd.DataFrame([{
         "model": model_type,
-        "train": f"{model_train}_{strategy}" if model_train == 'zellij' else model_train,
+        "train": model_train,
         "MAE": mae, 
         "RMSE": rmse, 
         "Mean Error": mean_error, 
@@ -325,7 +348,7 @@ def get_model_best_params(model_type, df, input_cols, target, split_date=False, 
     model = grid.best_estimator_
 
     if split_date:
-        y_pred = evaluate_model_statistic(model, X_valid, y_valid)
+        y_pred = evaluate_model_statistic(model, model_type, target, model_train, strategy, None, X_valid, y_valid)
         return y_valid, y_pred, model, grid.best_params_
     else:
         return None, None, model, grid.best_params_
@@ -408,7 +431,7 @@ def get_model_best_params_hyperopt(model_type, df, input_cols, target, split_dat
     logging.info(f'{model_type} best parameters: {best_params}')
     
     if split_date:
-        y_pred = evaluate_model_statistic(best_model, X_valid, y_valid)
+        y_pred = evaluate_model_statistic(model, model_type, target, model_train, strategy, None, X_valid, y_valid)
         return y_valid, y_pred, best_model, best_params
     else:
         return None, None, best_model, best_params
@@ -417,7 +440,8 @@ def get_model_best_params_hyperopt(model_type, df, input_cols, target, split_dat
 ##### Start of Zellij optimization #####
 ########################################
 
-def get_model_best_params_zellij(model_type, df, input_cols, target='res_coef', split_date=False, strategy = 'GA', max_iter=50):
+def get_model_best_params_zellij(model_type, df, input_cols, target='res_coef', split_date=False, model_train='zellij', strategy = 'GA', map_str = 'Henon',
+                                 max_iter=50, SET_SEED=1234):
     # https://zellij.readthedocs.io/en/latest/Welcome/index.html
     # from mpi4py import MPI
     # comm = MPI.COMM_WORLD
@@ -429,14 +453,16 @@ def get_model_best_params_zellij(model_type, df, input_cols, target='res_coef', 
     from zellij.strategies.simulated_annealing import Simulated_annealing                   # strategy == 'SA':
     from zellij.strategies.tools import MulExponential                                      # strategy == 'SA':
     from zellij.strategies import Bayesian_optimization                                     # strategy == 'BO':
-    from zellij.strategies.chaos_algorithm import Chaotic_optimization                      # strategy == 'CA':
-    from zellij.strategies.tools.chaos_map import Henon, Kent, Logistic, Tent, Random       # strategy == 'CA':
+    from zellij.strategies.chaos_algorithm import Chaotic_optimization                      # strategy == 'CO':
+    from zellij.strategies.tools.chaos_map import Henon, Kent, Logistic, Tent, Random       # strategy == 'CO':
+
+    np.random.seed(SET_SEED)
 
     prev_level = logging.getLogger('zellij').level
     logging.getLogger('zellij').setLevel(logging.ERROR)
 
     df.columns = df.columns.astype(str)
-    scoring = 'r2'
+    scoring = 'neg_root_mean_squared_error'
     # 'neg_mean_absolute_error'     : Negative Mean Absolute Error (MAE)
     # 'neg_mean_squared_error'      : Negative Mean Squared Error (MSE)
     # 'neg_root_mean_squared_error' : Negative Root Mean Squared Error (RMSE)
@@ -460,7 +486,7 @@ def get_model_best_params_zellij(model_type, df, input_cols, target='res_coef', 
     logging.info(f'Columns used: \n {X_all.columns}')
     
     if model_type == 'XGBoost':
-        if strategy in ['BO', 'CA']:        # required all parameter FloatVar
+        if strategy in ['BO', 'CO']:        # required all parameter FloatVar
             n_estimators_var    = FloatVar("n_estimators",      300, 1000)                  # over 1000 could lead to overfitting
             max_depth_var       = FloatVar("max_depth",         3, 10)                      # like this is good
             learning_rate_var   = FloatVar("learning_rate",     0.0001, 0.05)               # like this is good
@@ -585,8 +611,7 @@ def get_model_best_params_zellij(model_type, df, input_cols, target='res_coef', 
                                    )
         best_point, best_score = bo.run()
     # Chaotic optimization
-    elif strategy == 'CA':
-        map_str = 'Henon'               # options: ['Henon', 'Kent', 'Logistic', 'Tent', 'Random']
+    elif strategy == 'CO':
         ################################
         ### fixing map error - start ###
         ################################
@@ -614,7 +639,7 @@ def get_model_best_params_zellij(model_type, df, input_cols, target='res_coef', 
         ##############################
         sp = ContinuousSearchspace(search_vars, objective_function)
         chaos_map_instance = MyMapLen(250, sp.size)
-        ch = Chaotic_optimization(                  # line 996: "/ len(self.chaos_map)" needs to be commented to work
+        ch = Chaotic_optimization(                  # old problem, now fixed ... line 996: "/ len(self.chaos_map)" needs to be commented to work
             sp,
             f_calls=max_iter,             # total number of calls to the loss function
             chaos_map=chaos_map_instance, # pass the callable class instead of an instance, [Henon, Kent, Logistic, Tent, Random]
@@ -649,7 +674,7 @@ def get_model_best_params_zellij(model_type, df, input_cols, target='res_coef', 
     logging.info(f'{model_type} best score: {best_score}')
     
     if split_date:
-        y_pred = evaluate_model_statistic(best_model, X_valid, y_valid)
+        y_pred = evaluate_model_statistic(best_model, model_type, target, model_train, strategy, map_str, X_valid, y_valid)
         return y_valid, y_pred, best_model, best_params
     else:
         return None, None, best_model, best_params
@@ -693,7 +718,7 @@ def get_model(X_train, y_train, model_type, bestparams = None):
 
     return model
 
-def feature_importance(model, model_train, input_cols, target):
+def feature_importance(model, model_train, strategy, map_str, input_cols, target):
     # Check if model has feature_importances_ attribute
     if not hasattr(model, 'feature_importances_'):
         print("\nThe provided model does not have feature_importances_ attribute.")
@@ -728,7 +753,10 @@ def feature_importance(model, model_train, input_cols, target):
     plt.tight_layout()
 
     if model_train == 'zellij':
-        path = f'graphs/{target}_{model_train}_{strategy}_feat_imp.png'
+        if strategy == 'CO':
+            path = f'graphs/{target}_{model_train}_{strategy}_{map_str}_feat_imp.png'
+        else:
+            path = f'graphs/{target}_{model_train}_{strategy}_feat_imp.png'
     else:
         path = f'graphs/{target}_{model_train}_feat_imp.png'
     plt.savefig(path)
@@ -798,11 +826,12 @@ if __name__ == '__main__':
     correlation_matrix = True       # just have a look :)
     show = False                    # show graphs
 
-    model_train = 'grid_search'          # ['no', 'grid_search', 'hyperopt', 'zellij']
-    strategy = 'BO'                 # this is for only --> Zellij <-- ['GA', 'SA', 'BO', 'CA']
+    model_train = 'zellij'          # ['no', 'grid_search', 'hyperopt', 'zellij']
+    strategy = 'CO'                 # this is for only --> Zellij <-- ['GA', 'SA', 'BO', 'CO']
+    map_str = 'Logistic'               # ['Henon', 'Kent', 'Logistic', 'Tent', 'Random']
     random = False                  # only for 'grid_search' ---> to get the same results use False
-    SET_SEED = 4565                 # to get the same results over all (or to make different results)
-    max_iter = 150                  # res_coef = 1 hour ~~ 4000 iterations | C_ote = 1 hour ~~ 1200 iterations, all depends on numbre of columns
+    SET_SEED = 456789               # to get the same results over all (or to make different results)
+    max_iter = 10                   # res_coef = 1 hour ~~ 4000 iterations | C_ote = 1 hour ~~ 1200 iterations, all depends on numbre of columns
 
     target = 'spotreba_cr'          # ['spotreba_cr', 
                                     # 'flex_mnozstvi_+', 'flex_obchod_+', 'flex_cena_+',
@@ -866,34 +895,37 @@ if __name__ == '__main__':
         logging.info(f'Evaluating model {model_type} with PRESET PARAMETERS started... patience, it may take a few minutes')
         y_test, y_pred, model, y_test_val, y_pred_val = train_test_model(model_type, df, input_cols, target, split_date)
         if split_date:
-            plot_results(df, y_test_val, y_pred_val, target=target, split_date = split_date)
-        plot_results(df, y_test, y_pred, target=target, split_date = False)
-        feature_importance(model, model_train, input_cols, target=target)
+            plot_results(df, y_test_val, y_pred_val, target, model_train, strategy, map_str, split_date)
+        plot_results(df, y_test, y_pred, target, model_train, strategy, map_str, split_date = False)
+        feature_importance(model, model_train, strategy, map_str, input_cols, target)
         save_model(model, f'_model_{target}_OM_{short}_set')
 
     elif model_train == 'grid_search':
         logging.info(f'Training model {model_type} with GRID SEARCH started... patience, it may take a few minutes')
         y_valid, y_pred, model, best_params = get_model_best_params(model_type, df, input_cols, target, split_date, random)
         logging.info('Training model finished')
-        plot_results(df, y_valid, y_pred, target, split_date = split_date)
-        feature_importance(model, model_train, input_cols, target=target)
+        plot_results(df, y_valid, y_pred, target, model_train, strategy, map_str, split_date)
+        feature_importance(model, model_train, strategy, map_str, input_cols, target)
         save_model(model, f'_model_{target}_OM_{short}_grid_searh')
 
     elif model_train == 'hyperopt':
         logging.info(f'Training model {model_type} with HYPEROPT started... patience, it may take a few minutes')
         y_valid, y_pred, model, best_params = get_model_best_params_hyperopt(model_type, df, input_cols, target, split_date, max_iter)
         logging.info('Training model finished')
-        plot_results(df, y_valid, y_pred, target, split_date = split_date)
-        feature_importance(model, model_train, input_cols, target=target)
+        plot_results(df, y_valid, y_pred, target, model_train, strategy, map_str, split_date)
+        feature_importance(model, model_train, strategy, map_str, input_cols, target)
         save_model(model, f'_model_{target}_OM_{short}_hyperopt')
 
     elif model_train == 'zellij':
         logging.info(f'Training model {model_type} with ZELLIJ and {strategy} started... patience, it may take a few minutes')
-        y_valid, y_pred, model, best_params = get_model_best_params_zellij(model_type, df, input_cols, target, split_date, strategy, max_iter)
+        y_valid, y_pred, model, best_params = get_model_best_params_zellij(model_type, df, input_cols, target, split_date, model_train, strategy, map_str, max_iter, SET_SEED)
         logging.info('Training model finished')
-        plot_results(df, y_valid, y_pred, target, split_date = split_date)
-        feature_importance(model, model_train, input_cols, target=target)
-        save_model(model, f'_model_{target}_OM_{short}_zellij_{strategy}')
+        plot_results(df, y_valid, y_pred, target, model_train, strategy, map_str, split_date)
+        feature_importance(model, model_train, strategy, map_str, input_cols, target)
+        if strategy == 'CO':
+            save_model(model, f'_model_{target}_OM_{short}_zellij_{strategy}_{map_str}')
+        else:
+            save_model(model, f'_model_{target}_OM_{short}_zellij_{strategy}')
     
     if show:
         plt.show()
