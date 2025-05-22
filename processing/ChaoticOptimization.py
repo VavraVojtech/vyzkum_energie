@@ -60,8 +60,8 @@ if __name__ == '__main__':
     input_cols = pick_cols(target)
 
 
-    map_options = ['Henon', 'Kent', 'Logistic', 'Tent', 'Random']
-    set_seed_list = [1, 52, 673, 3874, 15675, 423696, 4365787, 45638798, 556347929, 1235867040]
+    map_options = ['Random'] # 'Henon', 'Kent', 'Logistic', 'Tent', 
+    set_seed_list = [52, 673, 3874, 15675, 423696, 4365787, 45638798, 556347929, 1235867040] # 1
 
     for map_str in map_options:
         for SET_SEED in set_seed_list:
